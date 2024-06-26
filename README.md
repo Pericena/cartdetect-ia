@@ -65,7 +65,8 @@ numpy==1.21.2
 
 
 ```
-python detector_demo.py --fuente-video /path/a/tu/video.mp4 --mostrar-resultados --input-size 608
+python detector_demo.py --fuente-video ./prueba.mp4 --mostrar-resultados --input-size 608
+python a.py --fuente-video ./prueba.jpg --mostrar-resultados --input-size 608
 ```
 
 *Intenta con los distintos modelos {608, 512, 384} para ver cual se ajusta mejor a tu caso*

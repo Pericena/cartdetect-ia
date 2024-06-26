@@ -12,7 +12,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 input_size = 608  # Ajusta el tamaño de entrada según tu modelo
-weights_path = './alpr/models/detection/tf-yolo_tiny_v4-512x512-custom-anchors/'
+weights_path = f'./alpr/models/detection/tf-yolo_tiny_v4-{input_size}x{input_size}-custom-anchors/'
 iou = 0.45
 score = 0.25
 detector_patente = PlateDetector(weights_path, input_size=input_size, iou=iou, score=score)
@@ -71,6 +71,11 @@ def process_image(image_path):
         bboxes = detector_patente.procesar_salida_yolo(yolo_out)
         frame_w_preds = detector_patente.draw_bboxes(frame, bboxes)
         
+        # Imprimir resultados en consola
+        print("Resultados de la imagen:")
+        for bbox in bboxes:
+            print(f"Bbox: {bbox}")
+
         result_frame = cv2.cvtColor(frame_w_preds, cv2.COLOR_RGB2BGR)
         
         temp_filename = f"result_{os.path.basename(image_path)}"
@@ -80,8 +85,9 @@ def process_image(image_path):
         return temp_filename
     
     except Exception as e:
+        print(f"Error procesando la imagen: {e}")
         return str(e)
-
+    
 def process_video(video_path):
     try:
         vid = cv2.VideoCapture(video_path)
@@ -104,6 +110,11 @@ def process_video(video_path):
             yolo_out = detector_patente.predict(input_img)
             bboxes = detector_patente.procesar_salida_yolo(yolo_out)
             frame_w_preds = detector_patente.draw_bboxes(frame, bboxes)
+
+            # Imprimir resultados en consola
+            print("Resultados del video:")
+            for bbox in bboxes:
+                print(f"Bbox: {bbox}")
             
             result_frame = cv2.cvtColor(frame_w_preds, cv2.COLOR_RGB2BGR)
             out.write(result_frame)
@@ -114,6 +125,7 @@ def process_video(video_path):
         return temp_filename
     
     except Exception as e:
+        print(f"Error procesando el video: {e}")
         return str(e)
 
 if __name__ == '__main__':
