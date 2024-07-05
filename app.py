@@ -3,6 +3,7 @@ from flask_cors import CORS
 import os
 import cv2
 from alpr.detector import PlateDetector
+import pytesseract
 
 app = Flask(__name__, static_folder='static', template_folder='static')
 CORS(app)
@@ -36,13 +37,13 @@ def upload_file():
         file.save(filepath)
         
         if file.mimetype.startswith('image'):
-            result_path = process_image(filepath)
+            result = process_image(filepath)
+            return jsonify(result), 200
         elif file.mimetype.startswith('video'):
             result_path = process_video(filepath)
+            return jsonify({'result': result_path}), 200
         else:
             return jsonify({'error': 'Formato de archivo no soportado'}), 400
-        
-        return jsonify({'result': result_path}), 200
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -69,12 +70,34 @@ def process_image(image_path):
         input_img = detector_patente.preprocess(frame)
         yolo_out = detector_patente.predict(input_img)
         bboxes = detector_patente.procesar_salida_yolo(yolo_out)
+        
+        print(f"Número de bboxes detectados: {len(bboxes)}")
+        print(f"Bboxes: {bboxes}")
+        
         frame_w_preds = detector_patente.draw_bboxes(frame, bboxes)
         
-        # Imprimir resultados en consola
-        print("Resultados de la imagen:")
-        for bbox in bboxes:
-            print(f"Bbox: {bbox}")
+        plates = []
+        for i, bbox in enumerate(bboxes):
+            if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+                x, y, w, h = bbox
+            else:
+                print(f"Bbox {i} con formato inesperado: {bbox}")
+                continue
+            
+            plate_img = frame[y:y+h, x:x+w]
+            
+            gray = cv2.cvtColor(plate_img, cv2.COLOR_RGB2GRAY)
+            thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+            
+            plate_text = pytesseract.image_to_string(thresh, config='--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
+            plate_text = ''.join(e for e in plate_text if e.isalnum())
+            
+            print(f"Placa {i} detectada. Texto: {plate_text}")
+            
+            plates.append({
+                'bbox': bbox,
+                'text': plate_text
+            })
 
         result_frame = cv2.cvtColor(frame_w_preds, cv2.COLOR_RGB2BGR)
         
@@ -82,11 +105,17 @@ def process_image(image_path):
         temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], temp_filename)
         cv2.imwrite(temp_filepath, result_frame)
         
-        return temp_filename
+        print(f"Imagen procesada guardada como: {temp_filename}")
+        print(f"Número total de placas detectadas y procesadas: {len(plates)}")
+        
+        return {
+            'result_image': temp_filename,
+            'plates': plates
+        }
     
     except Exception as e:
         print(f"Error procesando la imagen: {e}")
-        return str(e)
+        return {'error': str(e)}
     
 def process_video(video_path):
     try:
