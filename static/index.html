@@ -1,76 +1,92 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subir Archivo y Detectar Placas</title>
-    <!-- Incluir Tailwind CSS desde CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subir Archivo y Detectar Placas</title>
+  <!-- Incluir Tailwind CSS desde CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- Incluir Tesseract.js desde CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
 </head>
+
 <body class="bg-gray-100">
-    <div class="container mx-auto p-8 max-w-2xl">
-        <h1 class="text-3xl font-bold mb-6 text-center">Subir Archivo y Detectar Placas</h1>
-        <form id="uploadForm" enctype="multipart/form-data" class="mb-6">
-            <input type="file" id="fileInput" name="file" accept="image/*,video/*" class="border-gray-300 focus:border-indigo-500 focus:ring focus:ring-indigo-200 rounded-lg px-4 py-2 w-full">
-            <button type="submit" class="mt-2 bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Subir</button>
-        </form>
+  <div class="container mx-auto p-8 max-w-2xl">
+    <h1 class="text-3xl font-bold mb-6 text-center">Subir Archivo y Detectar Placas</h1>
+    <form id="uploadForm" enctype="multipart/form-data" class="mb-6">
+      <input type="file" id="fileInput" name="file" accept="image/*,video/*"
+        class="border-gray-300 focus:border-indigo-500 focus:ring focus:ring-indigo-200 rounded-lg px-4 py-2 w-full">
+      <button type="submit"
+        class="mt-2 bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Subir</button>
+    </form>
 
-        <div class="result-container hidden">
-            <h2 class="text-2xl font-bold mb-4">Resultado de Detección de Placas</h2>
-            <img id="resultImage" class="result-image mb-4 hidden" src="{{ url_for('get_file', filename=result) }}" alt="Resultado de detección de placas">
-            <video id="resultVideo" class="result-video mb-4 hidden" controls>
-                <source id="videoSource" src="" type="video/avi">
-                Tu navegador no soporta el elemento de video.
-            </video>
-
-            <video width="640" height="480" controls>
-    <source src="{{ url_for('get_file', filename=result) }}" type="video/mp4">
-    Tu navegador no soporta el elemento de video.
-</video>
-
-
-        </div>
+    <div class="result-container hidden">
+      <h2 class="text-2xl font-bold mb-4">Resultado de Detección de Placas</h2>
+      <h6 id="plateText" class="plate-text text-indigo-500 mb-4"></h6>
+      <img id="resultImage" class="result-image mb-4 hidden">
+      <video id="resultVideo" class="result-video mb-4 hidden" controls>
+        Tu navegador no soporta el elemento de video.
+      </video>
     </div>
+  </div>
 
-    <script>
-        document.getElementById('uploadForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-            const fileInput = document.getElementById('fileInput');
-            const file = fileInput.files[0];
-            const formData = new FormData();
-            formData.append('file', file);
+  <script>
+    document.getElementById('uploadForm').addEventListener('submit', function (event) {
+      event.preventDefault();
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
 
-            fetch('http://127.0.0.1:5000/api/upload', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                    return;
-                }
+      fetch('http://127.0.0.1:5000/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            alert(data.error);
+            return;
+          }
 
-                const resultContainer = document.querySelector('.result-container');
-                const resultImage = document.getElementById('resultImage');
-                const resultVideo = document.getElementById('resultVideo');
-                const videoSource = document.getElementById('videoSource');
+          const resultContainer = document.querySelector('.result-container');
+          const resultImage = document.getElementById('resultImage');
+          const resultVideo = document.getElementById('resultVideo');
 
-                if (file.type.startsWith('image')) {
-                    resultImage.src = `/uploads/${data.result}`;
-                    resultImage.classList.remove('hidden');
-                    resultVideo.classList.add('hidden');
-                } else if (file.type.startsWith('video')) {
-                    videoSource.src = `/uploads/${data.result}`;
-                    resultVideo.load();
-                    resultVideo.classList.remove('hidden');
-                    resultImage.classList.add('hidden');
-                }
+          if (file.type.startsWith('image')) {
+            // Use Tesseract.js to recognize text (plate number)
+            Tesseract.recognize(
+              file,
+              'eng',
+              {
+                logger: m => console.log(m)
+              }
+            ).then(({ data: { text } }) => {
+              const plateNumber = text.trim();
+              const plateText = document.getElementById('plateText');
+              plateText.textContent = plateNumber; // Solo mostrar el texto de la placa
+              resultImage.src = `/uploads/${data.result}`;
+              resultImage.classList.remove('hidden');
+              resultVideo.classList.add('hidden');
+              resultContainer.classList.remove('hidden');
+            }).catch(error => {
+              console.error('Error:', error);
+              alert('Error al procesar la imagen');
+            });
 
-                resultContainer.classList.remove('hidden');
-            })
-            .catch(error => console.error('Error:', error));
-        });
-    </script>
+          } else if (file.type.startsWith('video')) {
+            resultVideo.src = `/uploads/${data.result}`;
+            resultVideo.load();
+            resultVideo.classList.remove('hidden');
+            resultImage.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+          }
+        })
+        .catch(error => console.error('Error:', error));
+    });
+  </script>
+
 </body>
+
 </html>
